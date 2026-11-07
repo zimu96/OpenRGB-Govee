@@ -7,7 +7,7 @@ Plugin per OpenRGB che controlla via **Bluetooth LE** le strisce LED Govee **H61
 - **Luminosita** e **velocita** regolabili dalla scheda del dispositivo, come per gli altri dispositivi OpenRGB (gli effetti sono generati dal plugin, quindi funzionano uguali su ogni striscia).
 - Di default **resta collegato** (cambi di colore immediati) e si ricollega da solo se la connessione cade. Opzione per collegarsi solo quando serve e scollegarsi dopo alcuni secondi senza cambi (durante gli effetti resta collegato).
 - Parla direttamente con BlueZ (D-Bus), senza Qt Bluetooth; segna la striscia come "fidata" per BlueZ cosi i collegamenti successivi sono diretti (circa 3 s da zero).
-- Compatibile con qualunque programma che agisce sui dispositivi OpenRGB (dissolvenze di luminosita, profili, sincronizzazioni).
+- Compatibile con qualunque plugin di OpenRGB che agisce sui dispositivi (dissolvenze di luminosita, profili, sincronizzazioni).
 - Scheda "Govee": stato, indirizzo Bluetooth, elenco delle strisce trovate, ordine dei canali colore, pulsanti di prova.
 
 ## Requisiti
