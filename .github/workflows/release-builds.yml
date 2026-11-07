@@ -1,0 +1,94 @@
+#============================================================================#
+# OpenRGB-Govee - build di rilascio                                          #
+#   - linux = ubuntu-22.04 (glibc 2.35) -> .so portabile su tutte le distro  #
+#     con glibc >= 2.35.                                                     #
+# Trigger: push di un tag "v*" -> crea anche la GitHub Release con lo ZIP.   #
+#          Avvio manuale dal tab Actions (senza release).                    #
+#============================================================================#
+name: Release builds
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    name: Linux x86_64 (.so, Qt6)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Installa dipendenze
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            qt6-base-dev libgl1-mesa-dev libxkbcommon-dev pkg-config cmake g++ make
+
+      - name: Configura (Qt6)
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+
+      - name: Impacchetta
+        run: |
+          D=dist/OpenRGB-Govee-linux-x86_64
+          mkdir -p $D
+          cp build/libGoveePlugin.so $D/
+          cp packaging/install-linux.sh $D/install.sh
+          cp packaging/INSTALL-LINUX.txt $D/
+          cp LICENSE $D/
+          chmod +x $D/install.sh
+          ls -la $D
+
+      - name: Upload artefatto
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenRGB-Govee-linux-x86_64
+          path: dist/OpenRGB-Govee-linux-x86_64
+          if-no-files-found: error
+
+  release:
+    name: Pubblica GitHub Release
+    needs: [linux]
+    if: ${{ !cancelled() && needs.linux.result == 'success' && startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Scarica artefatti
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Crea gli ZIP
+        run: |
+          cd artifacts
+          for d in */; do
+            n="${d%/}"
+            zip -r "${n/OpenRGB-Govee-/OpenRGB-Govee-${GITHUB_REF_NAME}-}.zip" "$d"
+          done
+          ls -la *.zip
+
+      - name: Pubblica la Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Govee ${{ github.ref_name }}"
+          files: artifacts/*.zip
+          body: |
+            Scarica lo ZIP qui sotto, in **Assets**. "Source code (zip / tar.gz)" lo aggiunge GitHub in automatico: serve solo per compilare da te.
+            Download the ZIP from **Assets** below; "Source code" is added by GitHub and is only for building yourself.
+
+            ## ${{ github.ref_name }}
+            - Controlla via Bluetooth LE le strisce LED Govee **H613A** come dispositivo OpenRGB.
+            - 15 modi con luminosita e velocita: Direct, Static, Breathing, Flashing, Strobe, Heartbeat, Spectrum Cycle, Color Fade, Random, Candle, Fire, Police, Aurora, Lightning, Off.
+            - Resta collegato (con keepalive) e si ricollega da solo; opzione per collegarsi solo quando serve.
+            - **Solo Linux** (x86_64, BlueZ): non esistono versioni per Windows o macOS.
+            - **Testato su:** CachyOS (base Arch Linux), OpenRGB 1.1, una striscia H613A (firmware 1.07.06). Altri modelli Govee non provati.
+            - Per OpenRGB 1.1 (Plugin API v5, Qt6). Estrai lo ZIP, `bash install.sh`, riavvia OpenRGB e attiva il plugin in Impostazioni -> Plugin. Chiudi l'app Govee sul telefono: la striscia accetta un solo collegamento alla volta.
+
+            Fatto da zimu96 insieme a Claude (Anthropic) come assistente IA.

@@ -1,0 +1,53 @@
+====================================================================
+ Govee - plugin OpenRGB per strisce LED Govee H613A (Bluetooth LE)
+ SOLO LINUX (x86_64, Qt6, BlueZ)
+====================================================================
+
+TESTATO SU
+----------
+  CachyOS (base Arch Linux), OpenRGB 1.1, una striscia Govee H613A
+  (firmware 1.07.06). Altri modelli Govee e altre distro: non provati.
+
+COSA FA
+-------
+  Mostra la striscia come dispositivo OpenRGB ("Govee H613A") con 15 modi
+  (Direct, Static, Breathing, Flashing, Strobe, Heartbeat, Spectrum Cycle,
+  Color Fade, Random, Candle, Fire, Police, Aurora, Lightning, Off),
+  luminosita e velocita regolabili. Il collegamento e' Bluetooth LE.
+
+CONTENUTO
+---------
+  libGoveePlugin.so   Plugin OpenRGB (Plugin API v5, Qt6, x86_64)
+  install.sh          Script di installazione
+  LICENSE             GPL-2.0-or-later
+
+REQUISITI
+---------
+  - OpenRGB 1.1 compilato con Qt6 (Plugin API v5).
+  - BlueZ (bluetoothd attivo) e un adattatore Bluetooth con LE.
+  - Qt6 con modulo DBus (gia' presente con OpenRGB su quasi tutte le distro).
+
+INSTALLAZIONE
+-------------
+  Estrarre lo ZIP e lanciare:
+      bash install.sh
+  (oppure copiare libGoveePlugin.so in ~/.config/OpenRGB/plugins/)
+
+POI
+---
+  1. Chiudi del tutto OpenRGB e riavvialo:  openrgb --startminimized
+  2. Impostazioni -> Plugin -> spunta "Attivato" su Govee
+  3. Chiudi l'app Govee sul telefono: la striscia accetta UN solo
+     collegamento alla volta.
+  4. Scheda "Govee": stato, indirizzo Bluetooth (vuoto = automatico),
+     "resta sempre collegato", ordine dei canali colore, prove colore.
+
+NOTE
+----
+  - Le due istanze di OpenRGB insieme si contendono la striscia: tieni
+    un solo OpenRGB attivo (la X della finestra lo lascia nell'area di
+    notifica).
+  - Log di diagnostica: ~/.config/OpenRGB/govee-plugin.log
+  - Compilato su Ubuntu 22.04 (glibc 2.35): funziona su distribuzioni con
+    glibc >= 2.35. Su distro piu' vecchie compila dai sorgenti.
+  - Funziona solo su Linux: non esistono versioni per Windows o macOS.
