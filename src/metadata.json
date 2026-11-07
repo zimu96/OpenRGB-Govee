@@ -1,0 +1,9 @@
+{
+    "IID": "org.openrgb.OpenRGBPluginInterface",
+    "OpenRGBPluginAPIVersion": 5,
+    "Id": "OpenRGB-GoveePlugin",
+    "Name": "Govee (strisce LED Bluetooth)",
+    "VersionStr": "1.0.0",
+    "Url": "",
+    "Commit": ""
+}
