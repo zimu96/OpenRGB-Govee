@@ -20,6 +20,10 @@ Plugin per OpenRGB che controlla via **Bluetooth LE** le strisce LED Govee **H61
 ## Requisiti
 Linux con BlueZ, Qt6 (con Qt6 DBus) e OpenRGB con plugin API v5.
 
+**Il Bluetooth e' obbligatorio**: se il PC non ha il Bluetooth, il plugin non puo' funzionare.
+
+Sviluppato e provato su CachyOS (Linux).
+
 ## Compilare
     cmake -S . -B build && cmake --build build -j$(nproc)
     ./installa.sh
