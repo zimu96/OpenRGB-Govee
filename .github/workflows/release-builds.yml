@@ -86,6 +86,7 @@ jobs:
             ## ${{ github.ref_name }}
             - Controlla via Bluetooth LE le strisce LED Govee **H613A** come dispositivo OpenRGB.
             - 15 modi con luminosita e velocita: Direct, Static, Breathing, Flashing, Strobe, Heartbeat, Spectrum Cycle, Color Fade, Random, Candle, Fire, Police, Aurora, Lightning, Off.
+            - **Novita' 1.1.0:** 8 scene native della striscia (Sunrise, Sunset, Movie, Dating, Romantic, Blinking, Candlelight, Snowflake); Direct a 15 segmenti (sperimentale); risposta piu' pronta e affidabile (comandi ripetuti per sicurezza, pausa dopo l'accensione, un solo OpenRGB alla volta comanda la striscia).
             - Resta collegato (con keepalive) e si ricollega da solo; opzione per collegarsi solo quando serve.
             - **Solo Linux** (x86_64, BlueZ): non esistono versioni per Windows o macOS.
             - **Testato su:** CachyOS (base Arch Linux), OpenRGB 1.1, una striscia H613A (firmware 1.07.06). Altri modelli Govee non provati.
