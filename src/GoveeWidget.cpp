@@ -10,33 +10,46 @@
 #include <QComboBox>
 #include <QSpinBox>
 
-GoveeWidget::GoveeWidget(GoveeBle* b, QWidget* parent) : QWidget(parent), ble(b)
+GoveeWidget::GoveeWidget(GoveeBle* b, bool segEnabled, QWidget* parent) : QWidget(parent), ble(b), segOn(segEnabled)
 {
     auto* l = new QVBoxLayout(this);
+    notice = new QLabel;
+    notice->setWordWrap(true);
+    notice->setStyleSheet("color: #b00020; font-weight: bold;");
+    notice->hide();
+    l->addWidget(notice);
     l->addWidget(new QLabel("<b>Govee - strisce LED via Bluetooth</b><br>"
         "Modi, colore, luminosita e velocita si scelgono nella scheda del dispositivo \"Govee H613A\".<br>"
         "La striscia accetta un solo collegamento alla volta: con \"resta sempre collegato\" l'app del telefono non puo' collegarsi."));
+    auto* sg = new QCheckBox("Segmenti (sperimentale, riavvia OpenRGB)");
+    sg->setChecked(segOn);
+    l->addWidget(sg);
+    connect(sg, &QCheckBox::toggled, this, [this](bool on){ emit segmentsEnabledChanged(on); });
+    auto* sgt = new QPushButton("Prova segmenti");
+    l->addWidget(sgt);
+    connect(sgt, &QPushButton::clicked, this, [this]{ ble->testSegments(); });
+    l->addWidget(new QLabel("I modi \"Scena\" sono quelli nativi della striscia (Sunrise, Sunset, Movie, ...)."));
     status = new QLabel("Stato: " + ble->status());
     l->addWidget(status);
 
-    keep = new QCheckBox("Resta sempre collegato (cambi di colore piu' reattivi; se spento, si collega solo quando serve)");
+    keep = new QCheckBox("Resta sempre collegato (cambi piu' reattivi)");
     keep->setChecked(ble->keepConnected());
     l->addWidget(keep);
     auto* rowi = new QHBoxLayout;
-    rowi->addWidget(new QLabel("Se non resta collegato, si scollega dopo (secondi senza cambi):"));
+    rowi->addWidget(new QLabel("Scollega dopo (secondi senza cambi):"));
     idle = new QSpinBox; idle->setRange(2, 600); idle->setValue(ble->idleSeconds());
     rowi->addWidget(idle); rowi->addStretch();
     l->addLayout(rowi);
 
     auto* row = new QHBoxLayout;
-    row->addWidget(new QLabel("Indirizzo Bluetooth (vuoto = automatico):"));
+    row->addWidget(new QLabel("Indirizzo Bluetooth (vuoto = auto):"));
     addr = new QLineEdit(ble->address());
     addr->setPlaceholderText("AA:BB:CC:DD:EE:FF");
     row->addWidget(addr);
     l->addLayout(row);
 
     auto* row2 = new QHBoxLayout;
-    row2->addWidget(new QLabel("Ordine canali colore (se i colori sono sballati):"));
+    row2->addWidget(new QLabel("Ordine canali colore:"));
     order = new QComboBox;
     order->addItems({"RGB","RBG","GRB","GBR","BRG","BGR"});
     order->setCurrentText(ble->order());
@@ -82,3 +95,4 @@ void GoveeWidget::emitSettings(bool reconnect)
 }
 
 void GoveeWidget::setStatus(const QString& s) { status->setText("Stato: " + s); }
+void GoveeWidget::setNotice(const QString& s) { notice->setText(s); notice->setVisible(!s.isEmpty()); }

@@ -40,7 +40,7 @@ jobs:
         run: |
           D=dist/OpenRGB-Govee-linux-x86_64
           mkdir -p $D
-          cp build/libGoveePlugin.so $D/
+          cp libGoveePlugin.so $D/
           cp packaging/install-linux.sh $D/install.sh
           cp packaging/INSTALL-LINUX.txt $D/
           cp LICENSE $D/

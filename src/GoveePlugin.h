@@ -1,12 +1,13 @@
 #pragma once
 #include <QObject>
 #include <QPointer>
+#include <QLockFile>
 #include "OpenRGBPluginInterface.h"
 #include "GoveeBle.h"
 
-class GoveeBle; class GoveeWidget;
+class GoveeWidget;
 
-struct GoveeBridge { GoveeBle* ble = nullptr; RGBControllerInterface* ctl = nullptr; };
+struct GoveeBridge { GoveeBle* ble = nullptr; bool seg = false; RGBControllerInterface* ctl = nullptr; };
 
 class GoveePlugin : public QObject, public OpenRGBPluginInterface
 {
@@ -33,9 +34,15 @@ public:
 
 private:
     void saveSettings();
+    void loadBleDevice();
+    RGBControllerInterface* registerDevice(RGBController_Setup& setup, GoveeBridge* bridge, int nLeds = 1);
+
     OpenRGBPluginAPIInterface* api = nullptr;
     GoveeBle*                  ble = nullptr;
-    GoveeBridge*               bridge = nullptr;
-    RGBControllerInterface*    controller = nullptr;
+    bool                       segEnabled = false;
+    GoveeBridge*               bleBridge = nullptr;
+    RGBControllerInterface*    bleCtl = nullptr;
+    QLockFile*                 instanceLock = nullptr;   // una sola istanza di OpenRGB comanda le luci
+    bool                       primary = true;
     QPointer<GoveeWidget>      widget;
 };

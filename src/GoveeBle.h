@@ -10,7 +10,12 @@
 
 enum GoveeMode { GM_DIRECT = 0, GM_STATIC, GM_BREATHING, GM_FLASHING, GM_STROBE, GM_HEARTBEAT,
                  GM_SPECTRUM, GM_FADE2, GM_RANDOM, GM_CANDLE, GM_FIRE, GM_POLICE, GM_AURORA,
-                 GM_LIGHTNING, GM_OFF, GM_COUNT };
+                 GM_LIGHTNING, GM_OFF,
+                 // scene native della striscia (pacchetto 0x33 05 04)
+                 GM_SC_SUNRISE, GM_SC_SUNSET, GM_SC_MOVIE, GM_SC_DATING, GM_SC_ROMANTIC,
+                 GM_SC_BLINKING, GM_SC_CANDLE, GM_SC_SNOWFLAKE,
+                 GM_COUNT };
+static const int GOVEE_SEGMENTS = 15;
 
 struct GoveeParams
 {
@@ -19,6 +24,8 @@ struct GoveeParams
     unsigned int color2 = 0x0000FF00;  // secondo colore (Color Fade)
     int          speed = 5;            // 1..10
     int          brightness = 100;     // 0..100
+    bool         useSeg = false;       // Direct a segmenti (opzione sperimentale)
+    unsigned int seg[GOVEE_SEGMENTS] = {};   // colori dei segmenti (RGBColor di OpenRGB)
 };
 
 // Collegamento BLE a una striscia Govee + effetti generati dal plugin.
@@ -38,6 +45,7 @@ public:
     int idleSeconds() const { return idleSec; }
     void setOrder(const QString& o);        // RGB, RBG, GRB, GBR, BRG, BGR
     QString order() const { return chanOrder; }
+    void testSegments();                    // primo segmento rosso, ultimo blu, resto verde
 
     void start();                           // collega subito se "resta sempre collegato"
     void shutdown();
@@ -126,6 +134,14 @@ private:
     int settleCount = 0;
     bool settling = false;
 
+    bool nativeActive = false;              // la striscia e' in una sua scena nativa
+    int  burst = 0;                         // ripetizioni del colore dopo l'uscita da un modo nativo
+    QByteArray lastRaw;                     // ultimo pacchetto nativo: viene ripetuto qualche volta
+    QTimer* rawTimer = nullptr;
+    int rawCount = 0;
+    QByteArray pendingRaw;                  // pacchetto nativo (scena) da spedire una volta
+    QList<QByteArray> segQueue;             // pacchetti a segmenti in coda
+    void queueSegments(const unsigned* colors);
     int pendingPower = -1;
     long pendingColor = -1;                 // 0xRRGGBB (gia' riordinato) o -1
     long lastColorSent = -1;

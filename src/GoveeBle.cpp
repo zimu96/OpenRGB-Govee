@@ -17,6 +17,7 @@ GoveeBle::GoveeBle(QObject* parent) : QObject(parent)
     retry = new QTimer(this);        retry->setSingleShot(true);
     flushTimer = new QTimer(this);   flushTimer->setSingleShot(true);
     settleTimer = new QTimer(this);  settleTimer->setSingleShot(true);
+    rawTimer = new QTimer(this);     rawTimer->setSingleShot(true);
     idleTimer = new QTimer(this);    idleTimer->setSingleShot(true);
     effectTimer = new QTimer(this);  effectTimer->setInterval(45);
     pollTimer = new QTimer(this);
@@ -47,6 +48,13 @@ GoveeBle::GoveeBle(QObject* parent) : QObject(parent)
     connect(effectTimer, &QTimer::timeout, this, &GoveeBle::tick);
     connect(idleTimer, &QTimer::timeout, this, &GoveeBle::onIdle);
     // secondo invio dello stesso colore: se un pacchetto si perde, il colore finale arriva lo stesso
+    // scene e musica nativa: pacchetto singolo, quindi lo ripeto 3 volte (se uno si perde, parte lo stesso)
+    connect(rawTimer, &QTimer::timeout, this, [this]{
+        if(!ready || lastRaw.isEmpty()) return;
+        pendingRaw = lastRaw;
+        flush();
+        if(++rawCount < 3) rawTimer->start(rawCount == 1 ? 450 : 900);
+    });
     connect(settleTimer, &QTimer::timeout, this, [this]{
         if(ready && lastQueued >= 0 && !animated()) {
             settling = true;
@@ -91,7 +99,7 @@ bool GoveeBle::animated() const
 {
     int m;
     { QMutexLocker l(const_cast<QMutex*>(&pm)); m = params.mode; }
-    return m >= GM_BREATHING && m < GM_OFF && m != GM_DIRECT && m != GM_STATIC;
+    return (m >= GM_BREATHING && m < GM_OFF && m != GM_DIRECT && m != GM_STATIC);
 }
 
 void GoveeBle::start()
@@ -102,7 +110,7 @@ void GoveeBle::start()
 void GoveeBle::shutdown()
 {
     wantConn = false;
-    effectTimer->stop(); idleTimer->stop(); settleTimer->stop(); flushTimer->stop();
+    effectTimer->stop(); idleTimer->stop(); settleTimer->stop(); flushTimer->stop(); rawTimer->stop();
     teardown(true);
     setStatus("fermo");
 }
@@ -135,8 +143,43 @@ void GoveeBle::onParams()
     if(qEnvironmentVariableIsSet("GOVEE_DEBUG")) qInfo("onParams ready=%d state=%d", ready, int(state));
     GoveeParams p;
     { QMutexLocker l(&pm); p = params; }
+    bool nativeNow = p.mode > GM_OFF;
+    if(nativeActive && !nativeNow) {                              // uscita dal modo nativo: colore richiesto piu' volte
+        lastColorSent = -1; lastPowerSent = -1; burst = 3;
+    }
+    nativeActive = nativeNow;
     if(p.mode != lastMode) { lastMode = p.mode; sinceMode.restart(); }
+    if(p.mode <= GM_OFF) { lastRaw.clear(); rawTimer->stop(); }
     wantConn = true;
+    if(p.mode > GM_OFF) {   // scena nativa: un solo pacchetto
+        effectTimer->stop(); settleTimer->stop();
+        lastQueued = -1; pendingColor = -1; lastColorSent = -1;
+        if(!keepAlways) idleTimer->start(idleSec * 1000);
+        switch(p.mode) {
+        case GM_SC_SUNRISE:   pendingRaw = packet({0x33,0x05,0x04,0x00}); break;
+        case GM_SC_SUNSET:    pendingRaw = packet({0x33,0x05,0x04,0x01}); break;
+        case GM_SC_MOVIE:     pendingRaw = packet({0x33,0x05,0x04,0x04}); break;
+        case GM_SC_DATING:    pendingRaw = packet({0x33,0x05,0x04,0x05}); break;
+        case GM_SC_ROMANTIC:  pendingRaw = packet({0x33,0x05,0x04,0x07}); break;
+        case GM_SC_BLINKING:  pendingRaw = packet({0x33,0x05,0x04,0x08}); break;
+        case GM_SC_CANDLE:    pendingRaw = packet({0x33,0x05,0x04,0x09}); break;
+        case GM_SC_SNOWFLAKE: pendingRaw = packet({0x33,0x05,0x04,0x0f}); break;
+        default:              pendingRaw = packet({0x33,0x05,0x04,0x00}); break;
+        }
+        pendingPower = 1;
+        lastRaw = pendingRaw; rawCount = 0; rawTimer->start(250);
+        if(ready) flush(); else ensureConnection();
+        return;
+    }
+    if(p.useSeg && p.mode == GM_DIRECT) {    // Direct a segmenti
+        effectTimer->stop(); settleTimer->stop();
+        lastQueued = -1; pendingColor = -1; lastColorSent = -1;
+        if(!keepAlways) idleTimer->start(idleSec * 1000);
+        pendingPower = 1;
+        queueSegments(p.seg);
+        if(ready) flush(); else ensureConnection();
+        return;
+    }
     if(animated()) { idleTimer->stop(); if(!effectTimer->isActive()) effectTimer->start(); }
     else {
         effectTimer->stop();
@@ -506,16 +549,54 @@ void GoveeBle::flush()
         sendPacket(packet({0x33, 0x01, (unsigned char)pendingPower}));
         lastPowerSent = pendingPower;
         pendingPower = -1;
-        if(pendingColor >= 0) flushTimer->start(35);
+        if(pendingColor >= 0 || !pendingRaw.isEmpty() || !segQueue.isEmpty()) flushTimer->start(pendingRaw.isEmpty() ? 35 : 150);   // dopo l'accensione la striscia ha bisogno di un attimo
         return;
     }
     pendingPower = -1;
+    if(!pendingRaw.isEmpty()) { sendPacket(pendingRaw); pendingRaw.clear(); return; }
+    if(!segQueue.isEmpty()) {
+        sendPacket(segQueue.takeFirst());
+        if(!segQueue.isEmpty()) flushTimer->start(35);
+        return;
+    }
     if(pendingColor >= 0) {
         long c = pendingColor; pendingColor = -1;
         if(c != lastColorSent) {
             sendPacket(packet({0x33, 0x05, 0x02, (unsigned char)(c >> 16), (unsigned char)(c >> 8), (unsigned char)c}));
             lastColorSent = c;
+            if(burst > 0) { burst--; lastColorSent = -1; pendingColor = c; flushTimer->start(70); }
             if(!animated() && !settling) { settleCount = 0; settleTimer->start(120); }
         }
     }
+}
+
+// Colori per segmento: un pacchetto "33 05 0b R G B maskLo maskHi" per ogni colore diverso
+// (famiglia di strisce H6127/H6139/H6159; su H613A da verificare).
+void GoveeBle::queueSegments(const unsigned* colors)
+{
+    segQueue.clear();
+    QMap<unsigned, unsigned> masks;            // colore (RGB riordinato) -> maschera dei segmenti
+    for(int i = 0; i < GOVEE_SEGMENTS; i++) {
+        unsigned in[3] = {colors[i] & 0xFF, (colors[i] >> 8) & 0xFF, (colors[i] >> 16) & 0xFF}, out[3];
+        for(int k = 0; k < 3; k++) {
+            QChar ch = chanOrder.at(k);
+            out[k] = in[ch == 'R' ? 0 : ch == 'G' ? 1 : 2];
+        }
+        masks[(out[0] << 16) | (out[1] << 8) | out[2]] |= 1u << i;
+    }
+    for(auto it = masks.begin(); it != masks.end(); ++it) {
+        unsigned c = it.key(), m = it.value();
+        if(m == 0x7FFF) segQueue.append(packet({0x33, 0x05, 0x02, (unsigned char)(c >> 16), (unsigned char)(c >> 8), (unsigned char)c}));
+        else segQueue.append(packet({0x33, 0x05, 0x0b, (unsigned char)(c >> 16), (unsigned char)(c >> 8), (unsigned char)c,
+                                     (unsigned char)(m & 0xFF), (unsigned char)(m >> 8)}));
+    }
+}
+
+void GoveeBle::testSegments()
+{
+    GoveeParams p;
+    p.mode = GM_DIRECT; p.useSeg = true;
+    for(int i = 0; i < GOVEE_SEGMENTS; i++) p.seg[i] = 0x0000FF00;                 // verde (0x00BBGGRR)
+    p.seg[0] = 0x000000FF; p.seg[GOVEE_SEGMENTS - 1] = 0x00FF0000;               // rosso ... blu
+    applyParams(p);
 }
