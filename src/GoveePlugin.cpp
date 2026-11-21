@@ -41,7 +41,7 @@ OpenRGBPluginInfo GoveePlugin::GetPluginInfo()
     OpenRGBPluginInfo i;
     i.Name        = "Govee";
     i.Description = "Controlla via Bluetooth LE le strisce LED Govee (H613A) come dispositivo OpenRGB.";
-    i.Version     = "1.1.0";
+    i.Version     = "1.1.1";
     i.Commit      = "";
     i.URL         = "";
     i.Location    = OPENRGB_PLUGIN_LOCATION_TOP;

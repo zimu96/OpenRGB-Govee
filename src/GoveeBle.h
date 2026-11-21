@@ -88,6 +88,7 @@ private:
     void teardown(bool disconnectDevice);
     void scheduleRetry();
     void fail(const QString& why);
+    void forgetDevice();                    // cancella la striscia dalla memoria di BlueZ: verra' ritrovata da zero
 
     void setStatus(const QString& s);
     void logLine(const QString& l);
@@ -114,6 +115,7 @@ private:
     bool wantConn = false;
     bool ready = false;
     int  retryStep = 0;
+    int  failStreak = 0;                    // tentativi falliti di fila
     State state = Idle;
     quint64 session = 0;
     bool discovering = false;

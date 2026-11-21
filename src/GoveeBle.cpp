@@ -418,7 +418,7 @@ void GoveeBle::connectDevice()
     t << "org.bluez.Device1" << "Trusted" << QVariant::fromValue(QDBusVariant(true));
     dbusCall(t, 3000, nullptr);
     quint64 sess = session;
-    dbusCall(call(devPath, "org.bluez.Device1", "Connect"), 25000, [this, sess](const QDBusMessage& r){
+    dbusCall(call(devPath, "org.bluez.Device1", "Connect"), 15000, [this, sess](const QDBusMessage& r){
         if(sess != session) return;
         if(r.type() == QDBusMessage::ErrorMessage && !r.errorName().endsWith("AlreadyConnected")) {
             if(r.errorName().endsWith("UnknownObject") || r.errorName().endsWith("DoesNotExist")) devPath.clear();
@@ -465,7 +465,7 @@ void GoveeBle::findChar()
 
 void GoveeBle::onReady()
 {
-    state = Ready; ready = true; retryStep = 0; txKeep = 0; txOther = 0;
+    state = Ready; ready = true; retryStep = 0; failStreak = 0; txKeep = 0; txOther = 0;
     watchdog->stop();
     pollTimer->start(2000);
     keepTimer->start();
@@ -488,7 +488,23 @@ void GoveeBle::fail(const QString& why)
 {
     teardown(true);
     setStatus(why);
+    // Se il collegamento non riesce per 2 volte di fila, la striscia viene cancellata dalla memoria di BlueZ
+    // (solo lei: il Bluetooth resta acceso e cuffie/telefono non si accorgono di nulla). Poi viene
+    // ritrovata da zero e ricollegata da sola.
+    if(wantConn && ++failStreak >= 2) { failStreak = 0; forgetDevice(); }
     scheduleRetry();
+}
+
+void GoveeBle::forgetDevice()
+{
+    if(adapterPath.isEmpty() || devPath.isEmpty()) return;
+    logLine("collegamento non riuscito: cancello la striscia dalla memoria di BlueZ e la ricerco");
+    QDBusMessage m = call(adapterPath, "org.bluez.Adapter1", "RemoveDevice");
+    m << QVariant::fromValue(QDBusObjectPath(devPath));
+    dbusCall(m, 5000, [this](const QDBusMessage& r){
+        if(r.type() == QDBusMessage::ErrorMessage) logLine("RemoveDevice: " + r.errorName() + " " + r.errorMessage());
+    });
+    devPath.clear();
 }
 
 void GoveeBle::scheduleRetry()
